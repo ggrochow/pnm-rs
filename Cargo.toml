@@ -1,0 +1,6 @@
+[package]
+name = "pnm-scale"
+version = "0.1.0"
+authors = ["Graham Grochowski <ggrochow@gmail.com>"]
+
+[dependencies]
