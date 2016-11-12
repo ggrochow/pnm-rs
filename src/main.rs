@@ -1,42 +1,33 @@
 mod pbm;
 
+
 use pbm::PBM;
 use std::io::prelude::*;
 use std::fs::File;
 
 fn main() {
     let argv: Vec<String> = std::env::args().collect();
-
+//    println!("argv = {:?}", argv);
     let scale = argv
         .get(1).expect("1st ARGV must be the desired scale")
-        .parse::<u64>().expect("1st ARGV must be a valid positive number designating the desired scale");
+        .parse::<u32>().expect("1st ARGV must be a valid positive number designating the desired scale");
 
     let input_file_path = argv.
         get(2).expect("2nd ARGV must be the path to the input PNM");
 
     let output_file_path = argv
-        .get(2).expect("3rd ARGV must be the path to the output PNM");
+        .get(3).expect("3rd ARGV must be the path to the output PNM");
 
     // Get file as string
     let pbm_string = get_file_as_string(input_file_path);
 
-    let magic_number = pbm_string
-        .split_whitespace()
-        .next()
-        .expect("Must have magic number");
 
-    let pbm = match magic_number {
-        // P1 -> ASCII Bitmap
-        "P1" => {
-            let pbm = PBM::from_string(&pbm_string);
-            pbm.scale(scale);
-            println!("{}", pbm);
-
-        }, //.scale(scale),
-        // P2 -> ASCII Greyscale
-        // P3 -> ASCII RGB
-        _ => panic!("invalid magic number")
-    };
+    let mut pbm = PBM::from_string(&pbm_string);
+    pbm.scale_up(scale);
+    let out_string = format!("{}", pbm);
+//    println!("{}", out_string);
+    let mut out_file = File::create(output_file_path).expect("out-file path must be a valid writeable filename");
+    out_file.write_all(out_string.as_bytes()).expect("Write failed");
 }
 
 
