@@ -1,11 +1,13 @@
 use std::fmt;
+use std::cmp;
 
 #[derive(Debug)]
 pub struct PBM {
     magic_number: String,
-    height: u32,
-    width: u32,
-    max_val: u32,
+    height: i32,
+    width: i32,
+    size: i32,
+    max_val: i32,
     raster: Vec<Pixel>
 }
 
@@ -22,10 +24,10 @@ impl PBM {
         let magic_number = whitespace_iter.next().expect("1st number is pbm type");
 
         let width = whitespace_iter.next().expect("2nd number is width")
-            .parse::<u32>().expect("2nd set must be a valid number");
+            .parse::<i32>().expect("2nd set must be a valid number");
 
         let height = whitespace_iter.next().expect("3rd number is height")
-            .parse::<u32>().expect("3rd set must be a valid number");
+            .parse::<i32>().expect("3rd set must be a valid number");
 
         let mut raster: Vec<Pixel> = Vec::new();
 
@@ -44,16 +46,17 @@ impl PBM {
                     magic_number: magic_number.to_string(),
                     height: height,
                     width: width,
+                    size: height * width,
                     max_val: 1,
                     raster: raster
                 }
             },
             "P2" => {
-                let max_val: u32 = whitespace_iter.next().expect("4th number must be the max greyscale value")
+                let max_val: i32 = whitespace_iter.next().expect("4th number must be the max greyscale value")
                     .parse().expect("4th must be a valid number");
 
                 for char in whitespace_iter {
-                    let value: u32 = char.parse().expect("raster must only contain valid integers");
+                    let value: i32 = char.parse().expect("raster must only contain valid integers");
                     raster.push(Pixel::GreyScale(value));
                 }
 
@@ -61,18 +64,19 @@ impl PBM {
                     magic_number: magic_number.to_string(),
                     height: height,
                     width: width,
+                    size: height * width,
                     max_val: max_val,
                     raster: raster
                 }
             },
 
             "P3" => {
-                let max_val: u32 = whitespace_iter.next().expect("4th number must be the max greyscale value")
+                let max_val: i32 = whitespace_iter.next().expect("4th number must be the max greyscale value")
                     .parse().expect("4th must be a valid number");
 
-                let mut rgb_vec: Vec<u32> = Vec::new();
+                let mut rgb_vec: Vec<i32> = Vec::new();
                 for char in whitespace_iter {
-                    let value: u32 = char.parse().expect("raster must only contain valid integers");
+                    let value: i32 = char.parse().expect("raster must only contain valid integers");
                     rgb_vec.push(value);
 
                     if rgb_vec.len() == 3 {
@@ -86,6 +90,7 @@ impl PBM {
                     magic_number: magic_number.to_string(),
                     height: height,
                     width: width,
+                    size: height * width,
                     max_val: max_val,
                     raster: raster
                 }
@@ -96,7 +101,63 @@ impl PBM {
         }
     }
 
-    pub fn scale_up(&mut self, scale: u32) {
+    pub fn new_blank_pbm(height: i32, width: i32) -> PBM {
+        let mut raster: Vec<Pixel> = Vec::new();
+        let size = height * width;
+        raster.resize(size as usize, Pixel::BitMap(0));
+
+        PBM {
+            magic_number: "P1".to_string(),
+            height: height,
+            width: width,
+            size: size,
+            max_val: 1,
+            raster: raster
+        }
+    }
+
+    pub fn draw_line(&mut self, x_start: i32, y_start: i32, x_end: i32, y_end: i32) {
+        self.set_pixel(x_start, y_start, Pixel::BitMap(1));
+
+        let mut cursor_x = x_start;
+        let mut cursor_y = y_start;
+
+        let mut x_diff = 1;
+        let mut y_diff = 1;
+
+        while x_diff != 0 || y_diff != 0 {
+            x_diff = i32::signum(cursor_x- x_end);
+            y_diff = i32::signum(cursor_y - y_end);
+
+            cursor_x -= x_diff;
+            cursor_y -= y_diff;
+
+            self.set_pixel(cursor_x, cursor_y, Pixel::BitMap(1));
+        }
+    }
+
+    pub fn get_pixel(&self, x: i32, y: i32) -> Pixel {
+        let pixel_index = x + (y * self.width);
+
+        self.raster[pixel_index as usize]
+    }
+
+    pub fn set_pixel(&mut self, x: i32, y: i32, pixel: Pixel) {
+        let pixel_index = (x + (y * self.width)) as usize;
+        if pixel_index < 1 || pixel_index > self.size as usize {
+            println!("h{} w{}", self.height, self.width);
+            println!("{}, s {},  x{} y{}", pixel_index, self.size, x, y);
+            // TODO: better handle panic, possible do option / bool return
+            // TODO: check against x - 1 / width | y - 1 / height
+            panic!("set_pixel index out of bounds");
+        }
+
+        self.raster.remove(pixel_index);
+
+        self.raster.insert(pixel_index, pixel);
+    }
+
+    pub fn scale_up(&mut self, scale: i32) {
 
         let mut scaled_raster: Vec<Pixel> = Vec::new();
         {
@@ -130,6 +191,7 @@ impl fmt::Display for PBM {
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let raster_iter = self.raster.iter();
+        let line_break_count = cmp::min(35, self.width);
         let mut out_string = format!("{}\n{} {}\n",self.magic_number, self.width, self.height);
         if self.magic_number != "P1" {
             out_string += &format!("{}\n", self.max_val);
@@ -137,7 +199,7 @@ impl fmt::Display for PBM {
         for (i, pixel) in raster_iter.enumerate() {
             out_string += &format!("{}", pixel);
 
-            if (i+1) as u32 % 35 == 0 {
+            if (i+1) as i32 % line_break_count == 0 {
                 out_string += "\n";
             } else {
                 out_string += " ";
@@ -152,10 +214,10 @@ impl fmt::Display for PBM {
 #[derive(Debug)]
 #[derive(Copy)]
 #[derive(Clone)]
-enum Pixel {
-    BitMap(u32),
-    GreyScale(u32),
-    RGB(u32, u32, u32)
+pub enum Pixel {
+    BitMap(i32),
+    GreyScale(i32),
+    RGB(i32, i32, i32)
 }
 
 impl fmt::Display for Pixel {
