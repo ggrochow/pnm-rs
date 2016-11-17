@@ -49,12 +49,13 @@ fn main() {
     let end_x: i32 = end_x_str
         .parse().expect("5 points must only be #s and ,");
 
+    let out_file_name = argv.get(4).expect("4th argv must be the output filename");
 
     let mut pbm = PBM::new_blank_pbm(height, width);
     pbm.draw_line(start_x, start_y, end_x, end_y);
 
     let out_string = format!("{}", pbm);
-    let mut out_file = File::create("out.pnm").expect("out-file path must be a valid writeable filename");
+    let mut out_file = File::create(out_file_name).expect("out-file path must be a valid writeable filename");
     out_file.write_all(out_string.as_bytes()).expect("Write failed");
 }
 
