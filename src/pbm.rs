@@ -30,7 +30,7 @@ impl PBM {
             .parse::<i32>().expect("3rd set must be a valid number");
 
         let mut raster: Vec<Pixel> = Vec::new();
-        let mut max_val:i32 = 1;
+        let mut max_val:i32 = 255;
 
         match magic_number {
             "P1" => {
@@ -164,6 +164,10 @@ impl PBM {
         self.raster = scaled_raster;
         self.height = self.height * scale;
         self.width = self.width * scale;
+    }
+
+    pub fn convert_to(&mut self, magic_number: &str) {
+        self.magic_number = magic_number.to_string();
     }
 }
 

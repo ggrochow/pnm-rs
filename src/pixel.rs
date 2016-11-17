@@ -74,7 +74,7 @@ pub trait PnmPixel {
 
 impl PnmPixel for Pixel {
     fn to_pbm(&self) -> String {
-        let is_white = self.total_rgb_val() > 382;
+        let is_white = self.total_rgb_val() > BIT_MAP_RGB_BREAKPOINT;
 
         match is_white {
             true => String::from("1"),

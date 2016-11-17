@@ -26,6 +26,7 @@ fn main() {
 
     let mut pbm = PBM::from_string(&pbm_string);
     pbm.scale_up(scale);
+    pbm.convert_to("P2");
     let out_string = format!("{}", pbm);
 //    println!("{}", &out_string);
     let mut out_file = File::create(output_file_path).expect("out-file path must be a valid writeable filename");
