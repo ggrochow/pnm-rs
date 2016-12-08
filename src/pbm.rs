@@ -1,5 +1,6 @@
 use std::fmt;
 use pixel::{ Pixel, PnmPixel };
+use rayon::prelude::*;
 
 #[derive(Debug)]
 pub struct PBM {
@@ -27,10 +28,10 @@ impl PBM {
         }
     }
 
-    pub fn new_blank_pnm(height: i32, width: i32) -> Self {
+    pub fn new_blank_pnm(height: i32, width: i32, fill_pixel: Pixel) -> Self {
         let mut raster: Vec<Pixel> = Vec::new();
         let size = height * width;
-        raster.resize(size as usize, Pixel::black());
+        raster.resize(size as usize, fill_pixel);
 
         PBM {
             magic_number: "P3".to_string(),
@@ -49,28 +50,18 @@ impl PBM {
         }
     }
 
-    pub fn fill_top_half(&mut self, fill_pixel: Pixel) {
-        for y in 0..self.get_half_height() {
-            for x in 0..self.width {
-                self.set_pixel(x, y, fill_pixel.clone());
-            }
-        }
-    }
-
     pub fn fill_bottom_half(&mut self, fill_pixel: Pixel) {
-        for y in self.get_half_height()..self.height {
-            for x in 0..(self.width) {
-                self.set_pixel(x, y, fill_pixel.clone());
-            }
-        }
+        let half_size = self.get_half_height() * self.width;
+        self.raster.truncate(half_size as usize);
+        self.raster.resize(self.size as usize, fill_pixel)
     }
 
     pub fn draw_wall(&mut self, height: i32, x: i32, fill_pixel: Pixel) {
-        let middle = self.get_half_height();
+        let middle = self.get_half_height() - 1;
 
-        for i in 0..height + 1{
-            self.set_pixel(x, middle + i, fill_pixel.clone());
-            self.set_pixel(x, middle - i, fill_pixel.clone());
+        for i in 0..height + 1 {
+            self.set_pixel(x, middle + i, fill_pixel);
+            self.set_pixel(x, middle - i, fill_pixel);
         }
     }
 

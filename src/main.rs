@@ -1,4 +1,5 @@
 extern crate rustc_serialize;
+extern crate rayon;
 
 mod pbm;
 mod pixel;
@@ -9,7 +10,7 @@ use vec2::Vec2;
 use std::io::prelude::*;
 use std::fs::File;
 use rustc_serialize::json;
-
+use rayon::prelude::*;
 // 03 - Woof3d
 fn main() {
     let argv: Vec<String> = std::env::args().collect();
@@ -22,9 +23,6 @@ fn main() {
     let json_string = get_file_as_string(file_name);
     let json: InJSON = json::decode(&json_string).expect("Input file must be valid json");
     println!("json = {:?}", json);
-
-    let mut pnm = PBM::new_blank_pnm(json.camera.height as i32, json.camera.width as i32);
-
     let sky_pixel = pixel::Pixel::from_rgb(
         json.sky_color[0],
         json.sky_color[1],
@@ -32,7 +30,8 @@ fn main() {
         255
     );
 
-    pnm.fill_top_half(sky_pixel);
+    let mut pnm = PBM::new_blank_pnm(json.camera.height as i32, json.camera.width as i32, sky_pixel);
+    println!("sky");
 
     let ground_pixel = pixel::Pixel::from_rgb(
         json.ground_color[0],
@@ -41,7 +40,10 @@ fn main() {
         255
     );
 
+    println!("ground");
     pnm.fill_bottom_half(ground_pixel);
+
+    let timer = std::time::Instant::now();
 
     let pixel_radian_width = json.camera.h_fov / json.camera.width;
     let left_radians = json.camera.theta + json.camera.h_fov / 2.0;
@@ -49,16 +51,9 @@ fn main() {
     let v_fov = json.camera.h_fov * json.camera.height / json.camera.width;
     let pixel_radian_height = v_fov / json.camera.height;
 
-//    println!("left_radians = {:?}", left_radians);
-//    println!("left_with_offset = {:?}", left_with_offset);
-//    println!("pixel_radian_width = {:?}", pixel_radian_width);
-//    println!("pixel_radian_height= {:?}", pixel_radian_height);
-//    println!("v_fov = {:?}", v_fov);
-
     let camera = Vec2 { x: json.camera.x, y: json.camera.y };
 
-    for i in 1..(json.camera.width + 1.0) as usize {
-
+    for i in (1..(json.camera.width + 1.0) as usize).into_par_iter() {
         let center_radians = left_with_offset - pixel_radian_width * i as f64;
         let camera_point_1_length_away = Vec2 {
         // hacky rounding, input doesn't have actual PI values for perfect 90 deg angles
@@ -70,7 +65,6 @@ fn main() {
 //        println!("\npixel {} radians {}", i, center_radians);
         let mut closest_dist = std::f64::MAX;
         let mut closest_wall: Option<&Wall> = None;
-
         for wall in &json.walls {
             let p0 = Vec2 { x: wall.x0.clone(), y: wall.y0.clone() };
             let p1 = Vec2 { x: wall.x1.clone(), y: wall.y1.clone() };
@@ -97,10 +91,13 @@ fn main() {
                 255
             );
 
-            pnm.draw_wall(wall_pixel_height as i32, (i as i32 - 1), wall_color)
+            pnm.draw_wall(wall_pixel_height as i32, (i as i32 - 1), wall_color);
         }
-
     }
+
+    let elapsed = timer.elapsed();
+    println!("Elapsed: {} ms", (elapsed.as_secs() * 1_000) + (elapsed.subsec_nanos() / 1_000_000) as u64);
+
     // figure out FOV / Theta stuff to figure out camera rays + scaling distance
     // for each width, cast a ray down its path, do ray-wall collsion.
     // closest wall gets drawn to the screen, calc height based off of perspective view distances.
