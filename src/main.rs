@@ -31,7 +31,6 @@ fn main() {
     );
 
     let mut pnm = PBM::new_blank_pnm(json.camera.height as i32, json.camera.width as i32, sky_pixel);
-    println!("sky");
 
     let ground_pixel = pixel::Pixel::from_rgb(
         json.ground_color[0],
@@ -40,7 +39,6 @@ fn main() {
         255
     );
 
-    println!("ground");
     pnm.fill_bottom_half(ground_pixel);
 
     let timer = std::time::Instant::now();
@@ -95,8 +93,7 @@ fn main() {
         }
     }
 
-    let elapsed = timer.elapsed();
-    println!("Elapsed: {} ms", (elapsed.as_secs() * 1_000) + (elapsed.subsec_nanos() / 1_000_000) as u64);
+    println!("Elapsed: {} s, {} ms", (timer.elapsed().as_secs() * 1_000) as u64,  (timer.elapsed().subsec_nanos() / 1_000_000) as u64);
 
     // figure out FOV / Theta stuff to figure out camera rays + scaling distance
     // for each width, cast a ray down its path, do ray-wall collsion.
@@ -105,9 +102,11 @@ fn main() {
 
     let out_string = format!("{}", pnm);
     //    println!("{}", &out_string);
+    println!("Elapsed: {} s, {} ms", timer.elapsed().as_secs(),  (timer.elapsed().subsec_nanos() / 1_000_000) as u64);
     let mut out_file = File::create(out_file_name).expect("out-file path must be a valid writeable filename");
     out_file.write_all(out_string.as_bytes()).expect("Write failed");
 
+    println!("Elapsed: {} s, {} ms", timer.elapsed().as_secs(),  (timer.elapsed().subsec_nanos() / 1_000_000) as u64);
 }
 
 fn get_distance_to_ray_line_intersection(p0: &Vec2, v0: &Vec2, p1: &Vec2, p2: &Vec2) -> Option<f64> {

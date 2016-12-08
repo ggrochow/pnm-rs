@@ -128,17 +128,18 @@ impl PBM {
 
     pub fn set_pixel(&mut self, x: i32, y: i32, pixel: Pixel) {
         let pixel_index = (x + (y * self.width)) as usize;
-        if pixel_index > self.size as usize {
-            println!("h{} w{}", self.height, self.width);
-            println!("{}, s {},  x{} y{}", pixel_index, self.size, x, y);
-            // TODO: better handle panic, possible do option / bool return
-            // TODO: check against x - 1 / width | y - 1 / height
-            panic!("set_pixel index out of bounds");
-        }
 
-        self.raster.remove(pixel_index);
+        //        if pixel_index > self.size as usize {
+//            println!("h{} w{}", self.height, self.width);
+//            println!("{}, s {},  x{} y{}", pixel_index, self.size, x, y);
+//            // TODO: better handle panic, possible do option / bool return
+//            // TODO: check against x - 1 / width | y - 1 / height
+//            panic!("set_pixel index out of bounds");
+//        }
 
-        self.raster.insert(pixel_index, pixel.clone());
+        let px = self.raster.get_mut(pixel_index);
+        px.expect("Pixel must be in bounds").update(&pixel);
+
     }
 
     pub fn scale_up(&mut self, scale: i32) {

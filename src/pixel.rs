@@ -42,6 +42,12 @@ impl Pixel {
 
         return (self.total_rgb_val() as f64 / 3f64).round() as i32;
     }
+
+    pub fn update(&mut self, pixel: &Pixel) {
+        self.r = pixel.r;
+        self.g = pixel.g;
+        self.b = pixel.b;
+    }
 }
 
 fn round_to_rgb(value: i32, max_val: i32) -> i32 {
@@ -55,6 +61,7 @@ fn round_to_rgb(value: i32, max_val: i32) -> i32 {
 
 fn rgb_to_val(value: i32, max_val: i32) -> i32 {
     if value == 0 { return 0 }
+    if max_val == 255 { return value }
 
     let value_grey_percentage = value as f64 / MAX_RGB_VALUE as f64;
     let rounded_rgb_value = (max_val as f64 * value_grey_percentage).round();
