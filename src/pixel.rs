@@ -1,9 +1,7 @@
 const MAX_RGB_VALUE: i32 = 255;
-const BIT_MAP_RGB_BREAKPOINT: i32 = 382;
+const BIT_MAP_RGB_BREAKPOINT: i32 = 382; // (255+255+255) / 2
 
-#[derive(Debug)]
-#[derive(Copy)]
-#[derive(Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct Pixel {
     r: i32,
     g: i32,
@@ -89,7 +87,7 @@ impl PnmPixel for Pixel {
 
     fn to_ppm(&self, max_val: i32) -> String {
 
-        format!("{} {} {}", rgb_to_val(self.r, max_val), rgb_to_val(self.g, max_val), rgb_to_val(self.b, max_val))
+        format!(" {} {} {} ", rgb_to_val(self.r, max_val), rgb_to_val(self.g, max_val), rgb_to_val(self.b, max_val))
     }
 }
 
