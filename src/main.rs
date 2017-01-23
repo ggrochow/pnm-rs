@@ -7,106 +7,44 @@ mod vec2;
 
 use pbm::PBM;
 use vec2::Vec2;
+use pixel::Pixel;
 use std::io::prelude::*;
 use std::fs::File;
+use std::env;
 use rustc_serialize::json;
 use rayon::prelude::*;
 // 03 - Woof3d
 fn main() {
-    let argv: Vec<String> = std::env::args().collect();
-    println!("argv = {:?}", argv);
-    let file_name = argv
-        .get(1).expect("1st ARGV must be the desired input file");
+    let file_name = env::args().nth(1).unwrap();
+    let world: World = json::decode::<InJSON>(&get_file_as_string(&file_name)).unwrap().into();
+    let mut pbm = PBM::new_blank_pnm(world.height, world.width, world.background);
+    for triangle in &world.triangles {
+        println!("triangle.get_walls() = {:?}", triangle.get_walls());
+    }
+    for base_y in 0..world.height as usize {
+        for base_x in 0..world.height as usize {
+            let x = base_x as f64 + 0.5;
+            let y = base_y as f64 + 0.5;
 
-    let out_file_name = argv.get(2).expect("2nd ARGV must be output filename");
+            for triangle in &world.triangles {
+                let mut hit_count = 0;
+                for (p0, p1) in triangle.get_walls() {
+                    if let Some(distance) =
+                    get_distance_to_ray_line_intersection(&Vec2{ x: x, y: y }, &Vec2 { x: 5.0, y: 5.0 }, &p0, &p1) {
+                        hit_count += 1;
+                    }
+                }
 
-    let json_string = get_file_as_string(file_name);
-    let json: InJSON = json::decode(&json_string).expect("Input file must be valid json");
-    println!("json = {:?}", json);
-    let sky_pixel = pixel::Pixel::from_rgb(
-        json.sky_color[0],
-        json.sky_color[1],
-        json.sky_color[2],
-        255
-    );
-
-    let mut pnm = PBM::new_blank_pnm(json.camera.height as i32, json.camera.width as i32, sky_pixel);
-
-    let ground_pixel = pixel::Pixel::from_rgb(
-        json.ground_color[0],
-        json.ground_color[1],
-        json.ground_color[2],
-        255
-    );
-
-    pnm.fill_bottom_half(ground_pixel);
-
-    let timer = std::time::Instant::now();
-
-    let pixel_radian_width = json.camera.h_fov / json.camera.width;
-    let left_radians = json.camera.theta + json.camera.h_fov / 2.0;
-    let left_with_offset = left_radians + pixel_radian_width / 2.0;
-    let v_fov = json.camera.h_fov * json.camera.height / json.camera.width;
-    let pixel_radian_height = v_fov / json.camera.height;
-
-    let camera = Vec2 { x: json.camera.x, y: json.camera.y };
-
-    for i in (1..(json.camera.width + 1.0) as usize).into_par_iter() {
-        let center_radians = left_with_offset - pixel_radian_width * i as f64;
-        let camera_point_1_length_away = Vec2 {
-        // hacky rounding, input doesn't have actual PI values for perfect 90 deg angles
-        x: camera.x + 1.0 * center_radians.cos(),
-        y: camera.y + 1.0 * center_radians.sin()
-    };
-        let one_length_camera_vec = camera_point_1_length_away.minus(&camera);
-
-//        println!("\npixel {} radians {}", i, center_radians);
-        let mut closest_dist = std::f64::MAX;
-        let mut closest_wall: Option<&Wall> = None;
-        for wall in &json.walls {
-            let p0 = Vec2 { x: wall.x0.clone(), y: wall.y0.clone() };
-            let p1 = Vec2 { x: wall.x1.clone(), y: wall.y1.clone() };
-
-            if let Some(distance) = get_distance_to_ray_line_intersection(&camera, &one_length_camera_vec, &p0, &p1) {
-                if distance < closest_dist {
-                    closest_dist = distance;
-                    closest_wall = Some(wall);
+                if hit_count == 1 {
+                    pbm.set_pixel(x as i32, y as i32, triangle.color)
                 }
             }
         }
-
-        if let Some(wall) = closest_wall {
-            // Draw line
-            let wall_radian_height = (1.0 / closest_dist).atan();
-//            println!("wall_radian_height = {:?}", wall_radian_height);
-//            println!("dist = {:?}", closest_dist);
-            let wall_pixel_height = wall_radian_height / pixel_radian_height;
-//            println!("wall_pixel_height = {:?}", wall_pixel_height);
-            let wall_color = pixel::Pixel::from_rgb(
-                wall.color[0],
-                wall.color[1],
-                wall.color[2],
-                255
-            );
-
-            pnm.draw_wall(wall_pixel_height as i32, (i as i32 - 1), wall_color);
-        }
     }
 
-    println!("Elapsed: {} s, {} ms", (timer.elapsed().as_secs() * 1_000) as u64,  (timer.elapsed().subsec_nanos() / 1_000_000) as u64);
 
-    // figure out FOV / Theta stuff to figure out camera rays + scaling distance
-    // for each width, cast a ray down its path, do ray-wall collsion.
-    // closest wall gets drawn to the screen, calc height based off of perspective view distances.
-    // color as well
-
-    let out_string = format!("{}", pnm);
-    //    println!("{}", &out_string);
-    println!("Elapsed: {} s, {} ms", timer.elapsed().as_secs(),  (timer.elapsed().subsec_nanos() / 1_000_000) as u64);
-    let mut out_file = File::create(out_file_name).expect("out-file path must be a valid writeable filename");
-    out_file.write_all(out_string.as_bytes()).expect("Write failed");
-
-    println!("Elapsed: {} s, {} ms", timer.elapsed().as_secs(),  (timer.elapsed().subsec_nanos() / 1_000_000) as u64);
+    let mut file = File::create("out.pnm").unwrap();
+    file.write_all(format!("{}", pbm).as_bytes()).unwrap();
 }
 
 fn get_distance_to_ray_line_intersection(p0: &Vec2, v0: &Vec2, p1: &Vec2, p2: &Vec2) -> Option<f64> {
@@ -146,31 +84,68 @@ fn get_file_as_string(path: &str) -> String {
     file_as_string
 }
 
-#[derive(Debug)]
-#[derive(RustcDecodable)]
+#[derive(Debug, RustcDecodable)]
 struct InJSON {
-    walls: Vec<Wall>,
-    ground_color: Vec<i32>,
-    sky_color: Vec<i32>,
-    camera: Camera
+    height: i32,
+    width: i32,
+    background: Vec<i32>,
+    triangles: Vec<TriangleJSON>,
 }
 
+#[derive(Debug)]
+struct World {
+    height: i32,
+    width: i32,
+    background: Pixel,
+    triangles: Vec<Triangle>,
+}
+
+impl From<InJSON> for World {
+    fn from(json: InJSON) -> Self {
+        let mut triangles: Vec<Triangle> = Vec::with_capacity(json.triangles.len());
+        for triangleJson in json.triangles {
+            triangles.push(triangleJson.into());
+        }
+
+        World {
+            height: json.height,
+            width: json.width,
+            background: Pixel::from_rgb(json.background[0], json.background[1], json.background[2], 255),
+            triangles: triangles
+        }
+    }
+}
 #[derive(Debug, RustcDecodable)]
-struct Wall {
-    x0: f64,
-    x1: f64,
-    y0: f64,
-    y1: f64,
+struct TriangleJSON {
+    points: Vec<Vec<f64>>,
     color: Vec<i32>
 }
 
 #[derive(Debug)]
-#[derive(RustcDecodable)]
-struct Camera {
-    x: f64,
-    y: f64,
-    theta: f64,
-    h_fov: f64,
-    width: f64,
-    height: f64,
+struct Triangle {
+    p0: Vec2,
+    p1: Vec2,
+    p2: Vec2,
+    color: Pixel
+}
+
+impl Triangle {
+    fn get_walls(&self) -> Vec<(Vec2, Vec2)> {
+        vec![
+            (Vec2{ x: self.p0.x, y: self.p0.y }, Vec2 { x: self.p1.x, y: self.p1.y}),
+            (Vec2{ x: self.p0.x, y: self.p0.y }, Vec2 { x: self.p2.x, y: self.p2.y}),
+            (Vec2{ x: self.p2.x, y: self.p2.y }, Vec2 { x: self.p1.x, y: self.p1.y}),
+        ]
+    }
+}
+
+impl From<TriangleJSON> for Triangle {
+    fn from(json: TriangleJSON) -> Self {
+        Triangle {
+            p0: Vec2 { x: json.points[0][0], y: json.points[0][1] },
+            p1: Vec2 { x: json.points[1][0], y: json.points[1][1] },
+            p2: Vec2 { x: json.points[2][0], y: json.points[2][1] },
+            color: Pixel::from_rgb(json.color[0], json.color[1], json.color[2], 255)
+        }
+    }
 }
