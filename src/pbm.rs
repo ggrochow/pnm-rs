@@ -1,6 +1,8 @@
 use std::fmt;
 use pixel::{ Pixel, PnmPixel };
+use wall::Wall;
 use rayon::prelude::*;
+use super::Triangle;
 
 #[derive(Debug)]
 pub struct PBM {
@@ -60,8 +62,8 @@ impl PBM {
         let middle = self.get_half_height() - 1;
 
         for i in 0..height + 1 {
-            self.set_pixel(x, middle + i, fill_pixel);
-            self.set_pixel(x, middle - i, fill_pixel);
+            self.set_pixel(x, middle + i, &fill_pixel);
+            self.set_pixel(x, middle - i, &fill_pixel);
         }
     }
 
@@ -107,9 +109,9 @@ impl PBM {
         let mut y = y1;
         for x in x1..(x2 + 1) {
             if is_steep {
-                self.set_pixel(y, x, Pixel::white());
+                self.set_pixel(y, x, &Pixel::white());
             } else {
-                self.set_pixel(x, y, Pixel::white());
+                self.set_pixel(x, y, &Pixel::white());
             }
 
             error -= delta_y;
@@ -120,26 +122,62 @@ impl PBM {
         }
     }
 
+    pub fn draw_triangle(&mut self, triangle: &Triangle) {
+        let top = triangle.get_top_walls();
+        let bottom = triangle.get_bottom_walls();
+
+        self.fill_horizontal_space_between_walls(&top.0, &top.1, &triangle.color);
+        self.fill_horizontal_space_between_walls(&bottom.0, &bottom.1, &triangle.color);
+    }
+
+    pub fn fill_horizontal_space_between_walls(&mut self, wall1: &Wall, wall2: &Wall, pixel: &Pixel) {
+        let mut start_y = wall1.greatest_min_y(wall2);
+        let mut end_y = wall1.lowest_max_y(wall2);
+
+        if start_y % 1.0 == 0.5 {
+            println!("wall1 = {:?}, wall2 = {:?}", wall1, wall2);
+            println!("start_y = {:?}", start_y);
+        }
+        if end_y % 1.0 == 0.5 {
+            println!("wall1 = {:?}, wall2 = {:?}", wall1, wall2);
+            println!("end_y = {:?}", end_y);
+        }
+
+        // if start_y OR end_y == 0.5 check?
+        for base_y in start_y.round() as i32..end_y.round() as i32 {
+             let y = base_y as f64 + 0.5;
+
+             let wall_1_x = wall1.point_at_y(y);
+             let wall_2_x = wall2.point_at_y(y);
+
+             let mut start = wall_1_x;
+             let mut end = wall_2_x;
+             if start > end {
+                 start = wall_2_x;
+                 end = wall_1_x;
+             }
+
+             for base_x in start.round() as i32..end.round() as i32 {
+                 self.set_pixel(base_x, base_y, &pixel);
+             }
+         }
+        // offset y by 0.5, get lines X pos at that, draw to other lines X pos at that Y.
+        // for 0.5 offset -> 0,5 offset of end, fill each pixel
+        // don't include end-peices, check those to === 0.5, if so then do some edge checking
+    }
+
     pub fn get_pixel(&self, x: i32, y: i32) -> Pixel {
         let pixel_index = x + (y * self.width);
 
         self.raster[pixel_index as usize]
     }
 
-    pub fn set_pixel(&mut self, x: i32, y: i32, pixel: Pixel) {
+    pub fn set_pixel(&mut self, x: i32, y: i32, pixel: &Pixel) {
         let pixel_index = (x + (y * self.width)) as usize;
 
-        //        if pixel_index > self.size as usize {
-//            println!("h{} w{}", self.height, self.width);
-//            println!("{}, s {},  x{} y{}", pixel_index, self.size, x, y);
-//            // TODO: better handle panic, possible do option / bool return
-//            // TODO: check against x - 1 / width | y - 1 / height
-//            panic!("set_pixel index out of bounds");
-//        }
-
-        let px = self.raster.get_mut(pixel_index);
-        px.expect("Pixel must be in bounds").update(&pixel);
-
+        if let Some(px) = self.raster.get_mut(pixel_index) {
+            px.update(&pixel);
+        }
     }
 
     pub fn scale_up(&mut self, scale: i32) {
@@ -272,5 +310,4 @@ impl fmt::Display for PBM {
 
         write!(f, "{}", out_string)
     }
-
 }

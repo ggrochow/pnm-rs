@@ -4,7 +4,9 @@ extern crate rayon;
 mod pbm;
 mod pixel;
 mod vec2;
+mod wall;
 
+use wall::Wall;
 use pbm::PBM;
 use vec2::Vec2;
 use pixel::Pixel;
@@ -13,38 +15,20 @@ use std::fs::File;
 use std::env;
 use rustc_serialize::json;
 use rayon::prelude::*;
+
 // 03 - Woof3d
 fn main() {
     let file_name = env::args().nth(1).unwrap();
     let world: World = json::decode::<InJSON>(&get_file_as_string(&file_name)).unwrap().into();
     let mut pbm = PBM::new_blank_pnm(world.height, world.width, world.background);
     for triangle in &world.triangles {
-        println!("triangle.get_walls() = {:?}", triangle.get_walls());
-    }
-    for base_y in 0..world.height as usize {
-        for base_x in 0..world.height as usize {
-            let x = base_x as f64 + 0.5;
-            let y = base_y as f64 + 0.5;
-
-            for triangle in &world.triangles {
-                let mut hit_count = 0;
-                for (p0, p1) in triangle.get_walls() {
-                    if let Some(distance) =
-                    get_distance_to_ray_line_intersection(&Vec2{ x: x, y: y }, &Vec2 { x: 5.0, y: 5.0 }, &p0, &p1) {
-                        hit_count += 1;
-                    }
-                }
-
-                if hit_count == 1 {
-                    pbm.set_pixel(x as i32, y as i32, triangle.color)
-                }
-            }
-        }
+        pbm.draw_triangle(triangle)
     }
 
 
     let mut file = File::create("out.pnm").unwrap();
     file.write_all(format!("{}", pbm).as_bytes()).unwrap();
+    println!("Done!");
 }
 
 fn get_distance_to_ray_line_intersection(p0: &Vec2, v0: &Vec2, p1: &Vec2, p2: &Vec2) -> Option<f64> {
@@ -108,17 +92,18 @@ impl From<InJSON> for World {
         }
 
         World {
-            height: json.height,
-            width: json.width,
+            height: json.height * SCALE as i32,
+            width: json.width * SCALE as i32,
             background: Pixel::from_rgb(json.background[0], json.background[1], json.background[2], 255),
             triangles: triangles
         }
     }
 }
+
 #[derive(Debug, RustcDecodable)]
 struct TriangleJSON {
     points: Vec<Vec<f64>>,
-    color: Vec<i32>
+    color: Vec<i32>-
 }
 
 #[derive(Debug)]
@@ -129,22 +114,50 @@ struct Triangle {
     color: Pixel
 }
 
+const SCALE: f64 = 5.0;
+
 impl Triangle {
-    fn get_walls(&self) -> Vec<(Vec2, Vec2)> {
+    fn get_walls(&self) -> (Wall, Wall, Wall) {
+        (
+            Wall::new(Vec2{ x: self.p0.x, y: self.p0.y }, Vec2 { x: self.p1.x, y: self.p1.y}),
+            Wall::new(Vec2{ x: self.p0.x, y: self.p0.y }, Vec2 { x: self.p2.x, y: self.p2.y}),
+            Wall::new(Vec2{ x: self.p2.x, y: self.p2.y }, Vec2 { x: self.p1.x, y: self.p1.y}),
+        )
+    }
+
+    fn get_wall_vec(&self) -> Vec<Wall> {
         vec![
-            (Vec2{ x: self.p0.x, y: self.p0.y }, Vec2 { x: self.p1.x, y: self.p1.y}),
-            (Vec2{ x: self.p0.x, y: self.p0.y }, Vec2 { x: self.p2.x, y: self.p2.y}),
-            (Vec2{ x: self.p2.x, y: self.p2.y }, Vec2 { x: self.p1.x, y: self.p1.y}),
+            Wall::new(Vec2{ x: self.p0.x, y: self.p0.y }, Vec2 { x: self.p1.x, y: self.p1.y}),
+            Wall::new(Vec2{ x: self.p0.x, y: self.p0.y }, Vec2 { x: self.p2.x, y: self.p2.y}),
+            Wall::new(Vec2{ x: self.p2.x, y: self.p2.y }, Vec2 { x: self.p1.x, y: self.p1.y}),
         ]
+    }
+
+    fn get_top_walls(&self) -> (Wall, Wall) {
+        let mut walls = self.get_wall_vec();
+        walls.sort_by(|a, b|
+            (a.p0.y + a.p1.y).partial_cmp(&(b.p0.y + b.p1.y)).unwrap()
+        );
+
+        (walls[1].clone(), walls[0].clone())
+    }
+
+    fn get_bottom_walls(&self) -> (Wall, Wall) {
+        let mut walls = self.get_wall_vec();
+        walls.sort_by(|a, b|
+            (a.p0.y + a.p1.y).partial_cmp(&(b.p0.y + b.p1.y)).unwrap()
+        );
+
+        (walls[1].clone(), walls[2].clone())
     }
 }
 
 impl From<TriangleJSON> for Triangle {
     fn from(json: TriangleJSON) -> Self {
         Triangle {
-            p0: Vec2 { x: json.points[0][0], y: json.points[0][1] },
-            p1: Vec2 { x: json.points[1][0], y: json.points[1][1] },
-            p2: Vec2 { x: json.points[2][0], y: json.points[2][1] },
+            p0: Vec2 { x: json.points[0][0] * SCALE, y: json.points[0][1] * SCALE },
+            p1: Vec2 { x: json.points[1][0] * SCALE, y: json.points[1][1] * SCALE },
+            p2: Vec2 { x: json.points[2][0] * SCALE, y: json.points[2][1] * SCALE },
             color: Pixel::from_rgb(json.color[0], json.color[1], json.color[2], 255)
         }
     }
