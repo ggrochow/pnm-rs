@@ -126,23 +126,60 @@ impl PBM {
         let top = triangle.get_top_walls();
         let bottom = triangle.get_bottom_walls();
 
-        self.fill_horizontal_space_between_walls(&top.0, &top.1, &triangle.color);
-        self.fill_horizontal_space_between_walls(&bottom.0, &bottom.1, &triangle.color);
+        self.fill_horizontal_space_between_walls(&top.0, &top.1, &triangle);
+        self.fill_horizontal_space_between_walls(&bottom.0, &bottom.1, &triangle);
     }
 
-    pub fn fill_horizontal_space_between_walls(&mut self, wall1: &Wall, wall2: &Wall, pixel: &Pixel) {
+    fn fill_boundary_pixel(&mut self, x: f64, y: f64, triangle: &Triangle) {
+        let mut x_base = x.floor();
+        let mut y_base = y.floor();
+        let x_pixel = x_base as i32;
+        let y_pixel = y_base as i32;
+        for line in triangle.get_wall_vec() {
+            if line.contains_point(x, y) {
+                // TOP LEFT
+                if !line.contains_point(x_base, y_base) {
+                    if triangle.contains_point(x_base, y_base) {
+                        self.set_pixel(x.floor() as i32, y_base as i32, &triangle.color);
+                    }
+                    return;
+                }
+
+                // TOP RIGHT
+                if !line.contains_point(x_base + 1.0, y_base) {
+                    if triangle.contains_point(x_base+ 1.0, y_base) {
+                        self.set_pixel(x.floor() as i32, y_base as i32, &triangle.color);
+                    }
+                    return;
+                }
+                // BOT LEFT
+                if !line.contains_point(x_base, y_base + 1.0) {
+                    if triangle.contains_point(x_base, y_base+ 1.0) {
+                        self.set_pixel(x.floor() as i32, y_base as i32, &triangle.color);
+                    }
+                    return;
+                }
+                // BOT RIGHT
+                if !line.contains_point(x_base + 1.0, y_base + 1.0) {
+                    if triangle.contains_point(x_base+ 1.0, y_base+ 1.0) {
+                        self.set_pixel(x.floor() as i32, y_base as i32, &triangle.color);
+                    }
+                    return;
+                }
+
+                println!("No draw");
+                return
+            }
+        }
+    }
+
+    pub fn fill_horizontal_space_between_walls(&mut self, wall1: &Wall, wall2: &Wall, triangle: &Triangle) {
         let mut start_y = wall1.greatest_min_y(wall2);
         let mut end_y = wall1.lowest_max_y(wall2);
 
-        if start_y % 1.0 == 0.5 {
-            println!("wall1 = {:?}, wall2 = {:?}", wall1, wall2);
-            println!("start_y = {:?}", start_y);
+        if start_y.fract() == 0.5 {
+            start_y -= 1.0;
         }
-        if end_y % 1.0 == 0.5 {
-            println!("wall1 = {:?}, wall2 = {:?}", wall1, wall2);
-            println!("end_y = {:?}", end_y);
-        }
-
         // if start_y OR end_y == 0.5 check?
         for base_y in start_y.round() as i32..end_y.round() as i32 {
              let y = base_y as f64 + 0.5;
@@ -157,8 +194,16 @@ impl PBM {
                  end = wall_1_x;
              }
 
-             for base_x in start.round() as i32..end.round() as i32 {
-                 self.set_pixel(base_x, base_y, &pixel);
+            if start.fract() == 0.5 {
+                self.fill_boundary_pixel(start, y, triangle);
+            }
+
+            if end.fract() == 0.5 {
+                self.fill_boundary_pixel(end, y, triangle);
+            }
+
+            for base_x in start.round() as i32..end.round() as i32 {
+                 self.set_pixel(base_x, base_y, &triangle.color);
              }
          }
         // offset y by 0.5, get lines X pos at that, draw to other lines X pos at that Y.

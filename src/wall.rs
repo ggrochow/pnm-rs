@@ -155,6 +155,19 @@ impl Wall {
         }
     }
 
+    pub fn contains_point(&self, x: f64, y: f64) -> bool {
+        self.contains_point_vec(Vec2 {x: x, y: y})
+    }
+
+    pub fn contains_point_vec(&self, p2: Vec2) -> bool {
+//        println!("self = {:?} p2 = {:?}", self, p2);
+        let ref p0 = self.p0;
+        let ref p1 = self.p1;
+
+        let cross = p2.minus(&p0).cross(&p1.minus(&p0));
+        cross == 0.0
+    }
+
 //    pub fn multiply(&self, multiplier: f64) -> Vec2 {
 //        Vec2 {
 //            x: self.x * multiplier,

@@ -16,7 +16,7 @@ use std::env;
 use rustc_serialize::json;
 use rayon::prelude::*;
 
-// 03 - Woof3d
+const SCALE: f64 = 100.0;
 fn main() {
     let file_name = env::args().nth(1).unwrap();
     let world: World = json::decode::<InJSON>(&get_file_as_string(&file_name)).unwrap().into();
@@ -36,12 +36,7 @@ fn get_distance_to_ray_line_intersection(p0: &Vec2, v0: &Vec2, p1: &Vec2, p2: &V
 
     let v0_cross_v1 = v0.cross(&v1);
 
-//    println!("p0 = {:?}, v0 = {:?}, p1 = {:?}, v1 = {:?}", p0, v0, p1, v1);
     if v0_cross_v1 == 0.0 {
-        //    if (v0_cross_v1 * 100000.0).round() / 100000.0 == 0.0 {
-        // rounding to deal with the fact that our angles aren't perfect due to input-radians-accuracy
-        // Segments are parallel / co-linear
-        // in our case we don't care about co-linear collisions
         return None;
     }
 
@@ -51,9 +46,8 @@ fn get_distance_to_ray_line_intersection(p0: &Vec2, v0: &Vec2, p1: &Vec2, p2: &V
     let s1 = p1_minus_p0.cross(&v0) / v0_cross_v1;
 
     if s0 >= 0.0 && s1 <= 1.0 && s1 >= 0.0 {
-        // because v0 is of 1 distance,
-        // s0 = distance to collision
-//        println!("{:?}", p0.plus(&v0.multiply(s0)));
+        // because v0 is of 1 distance, s0 = distance to collision
+        // collision = p0.plus(&v0.multiply(s0))
         Some(s0)
     } else {
         None
@@ -103,7 +97,7 @@ impl From<InJSON> for World {
 #[derive(Debug, RustcDecodable)]
 struct TriangleJSON {
     points: Vec<Vec<f64>>,
-    color: Vec<i32>-
+    color: Vec<i32>
 }
 
 #[derive(Debug)]
@@ -113,8 +107,6 @@ struct Triangle {
     p2: Vec2,
     color: Pixel
 }
-
-const SCALE: f64 = 5.0;
 
 impl Triangle {
     fn get_walls(&self) -> (Wall, Wall, Wall) {
@@ -149,6 +141,22 @@ impl Triangle {
         );
 
         (walls[1].clone(), walls[2].clone())
+    }
+
+    pub fn contains_point(&self, x: f64, y: f64) -> bool {
+        self.contains_point_vec(Vec2 {x: x, y: y})
+    }
+
+    pub fn contains_point_vec(&self, p0: Vec2) -> bool {
+        let v0 = Vec2 { x: 1.0, y: 1.0 };
+        let mut hit_count = 0;
+        for wall in self.get_wall_vec() {
+            if let Some(_) = get_distance_to_ray_line_intersection(&p0, &v0, &wall.p0, &wall.p1) {
+                hit_count += 1
+            }
+        }
+
+        hit_count == 1
     }
 }
 
