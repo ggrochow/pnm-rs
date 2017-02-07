@@ -1,3 +1,5 @@
+use vec2::Vec2;
+
 #[derive(Debug, Clone)]
 pub struct Vec3 {
     pub x: f64,
@@ -27,6 +29,13 @@ impl Vec3 {
             x: self.x * multiplier,
             y: self.y * multiplier,
             z: self.z * multiplier,
+        }
+    }
+
+    pub fn to_vec2_z_scale(&self) -> Vec2 {
+        Vec2 {
+            x: self.x / self.z,
+            y: self.y / self.z,
         }
     }
 }

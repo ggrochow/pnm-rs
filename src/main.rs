@@ -1,28 +1,30 @@
 extern crate rustc_serialize;
-extern crate rayon;
-
 mod pbm;
 mod pixel;
 mod vec2;
+mod vec3;
 mod wall;
 
 use wall::Wall;
 use pbm::PBM;
 use vec2::Vec2;
+use vec3::Vec3;
 use pixel::Pixel;
 use std::io::prelude::*;
 use std::fs::File;
 use std::env;
 use rustc_serialize::json;
-use rayon::prelude::*;
 
-const SCALE: f64 = 100.0;
+const SCALE: f64 = 1.0;
+
 fn main() {
     let file_name = env::args().nth(1).unwrap();
     let world: World = json::decode::<InJSON>(&get_file_as_string(&file_name)).unwrap().into();
     let mut pbm = PBM::new_blank_pnm(world.height, world.width, world.background);
     for triangle in &world.triangles {
-        pbm.draw_triangle(triangle)
+        let scaled_triangle: Triangle = triangle.to_2d_z_scale();
+
+        pbm.draw_triangle(&scaled_triangle);
     }
 
 
@@ -75,12 +77,12 @@ struct World {
     height: i32,
     width: i32,
     background: Pixel,
-    triangles: Vec<Triangle>,
+    triangles: Vec<Triangle3>,
 }
 
 impl From<InJSON> for World {
     fn from(json: InJSON) -> Self {
-        let mut triangles: Vec<Triangle> = Vec::with_capacity(json.triangles.len());
+        let mut triangles = Vec::with_capacity(json.triangles.len());
         for triangleJson in json.triangles {
             triangles.push(triangleJson.into());
         }
@@ -90,6 +92,36 @@ impl From<InJSON> for World {
             width: json.width * SCALE as i32,
             background: Pixel::from_rgb(json.background[0], json.background[1], json.background[2], 255),
             triangles: triangles
+        }
+    }
+}
+
+#[derive(Debug)]
+struct Triangle3 {
+    p0: Vec3,
+    p1: Vec3,
+    p2: Vec3,
+    color: Pixel
+}
+
+impl From<TriangleJSON> for Triangle3 {
+    fn from(json: TriangleJSON) -> Self {
+        Triangle3 {
+            p0: Vec3 { x: json.points[0][0] * SCALE, y: json.points[0][1] * SCALE, z: json.points[0][2] },
+            p1: Vec3 { x: json.points[1][0] * SCALE, y: json.points[1][1] * SCALE, z: json.points[1][2] },
+            p2: Vec3 { x: json.points[2][0] * SCALE, y: json.points[2][1] * SCALE, z: json.points[2][2] },
+            color: Pixel::from_rgb(json.color[0], json.color[1], json.color[2], 255)
+        }
+    }
+}
+
+impl Triangle3 {
+    fn to_2d_z_scale(&self) -> Triangle {
+        Triangle {
+            p0: self.p0.to_vec2_z_scale(),
+            p1: self.p1.to_vec2_z_scale(),
+            p2: self.p2.to_vec2_z_scale(),
+            color: self.color,
         }
     }
 }
@@ -109,14 +141,6 @@ struct Triangle {
 }
 
 impl Triangle {
-    fn get_walls(&self) -> (Wall, Wall, Wall) {
-        (
-            Wall::new(Vec2{ x: self.p0.x, y: self.p0.y }, Vec2 { x: self.p1.x, y: self.p1.y}),
-            Wall::new(Vec2{ x: self.p0.x, y: self.p0.y }, Vec2 { x: self.p2.x, y: self.p2.y}),
-            Wall::new(Vec2{ x: self.p2.x, y: self.p2.y }, Vec2 { x: self.p1.x, y: self.p1.y}),
-        )
-    }
-
     fn get_wall_vec(&self) -> Vec<Wall> {
         vec![
             Wall::new(Vec2{ x: self.p0.x, y: self.p0.y }, Vec2 { x: self.p1.x, y: self.p1.y}),

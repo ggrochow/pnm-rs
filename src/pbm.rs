@@ -1,7 +1,6 @@
 use std::fmt;
 use pixel::{ Pixel, PnmPixel };
 use wall::Wall;
-use rayon::prelude::*;
 use super::Triangle;
 
 #[derive(Debug)]
@@ -49,6 +48,13 @@ impl PBM {
         match self.height % 2 {
             0 => self.height / 2,
             _ => (self.height / 2) + 1
+        }
+    }
+
+    fn get_half_width(&self) -> i32 {
+        match self.width % 2 {
+            0 => self.width/ 2,
+            _ => (self.width / 2) + 1
         }
     }
 
@@ -180,7 +186,7 @@ impl PBM {
         if start_y.fract() == 0.5 {
             start_y -= 1.0;
         }
-        // if start_y OR end_y == 0.5 check?
+
         for base_y in start_y.round() as i32..end_y.round() as i32 {
              let y = base_y as f64 + 0.5;
 
@@ -202,6 +208,7 @@ impl PBM {
                 self.fill_boundary_pixel(end, y, triangle);
             }
 
+//            println!("base_y = {:?}, start {}, end {}", base_y, start.round(), end.round());
             for base_x in start.round() as i32..end.round() as i32 {
                  self.set_pixel(base_x, base_y, &triangle.color);
              }
@@ -214,10 +221,29 @@ impl PBM {
     pub fn get_pixel(&self, x: i32, y: i32) -> Pixel {
         let pixel_index = x + (y * self.width);
 
-        self.raster[pixel_index as usize]
+        self.raster.get(pixel_index as usize).unwrap().clone()
     }
 
     pub fn set_pixel(&mut self, x: i32, y: i32, pixel: &Pixel) {
+        let x_offset = x + self.get_half_height();
+        let y_offset = y + self.get_half_width();
+
+        if x_offset >= self.width || y_offset >= self.height || x_offset < 0 || y_offset < 0 {
+            return
+        }
+
+        let pixel_index = (x_offset + (y_offset * self.width)) as usize;
+
+        if let Some(px) = self.raster.get_mut(pixel_index) {
+            px.update(&pixel);
+        }
+    }
+
+    pub fn set_pixel_no_offset(&mut self, x: i32, y: i32, pixel: &Pixel) {
+        if x >= self.width || y >= self.height || x < 0 || y< 0 {
+            return
+        }
+
         let pixel_index = (x + (y * self.width)) as usize;
 
         if let Some(px) = self.raster.get_mut(pixel_index) {
